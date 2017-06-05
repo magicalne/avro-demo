@@ -1,0 +1,72 @@
+import org.apache.avro.Schema
+import org.apache.avro.compiler.specific.SpecificCompiler
+
+buildscript {
+    repositories {
+    maven {
+        url 'http://maven.aliyun.com/mvn/repository/'
+    }
+        mavenCentral()
+    }
+    dependencies {
+        classpath group:'org.apache.avro', name:'avro-tools' ,version: '1.8.2'
+    }
+}
+plugins {
+    id "java"
+}
+group 'magicalne'
+version '1.0-SNAPSHOT'
+sourceCompatibility = 1.8
+
+repositories {
+    maven {
+        url 'http://maven.aliyun.com/mvn/repository/'
+    }
+    mavenCentral()
+}
+
+dependencies {
+    compile group: 'org.apache.avro', name: 'avro', version: '1.8.2'
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+}
+
+//
+// define source and destination
+//
+def avdlFiles = fileTree('src/schema').include('**/*.avsc')
+// Do NOT generate into $buildDir, because IntelliJ will ignore files in
+// this location and will show errors in source code
+def generatedJavaDir = "generated/avro/java"
+
+sourceSets.main.java.srcDir generatedJavaDir
+
+//
+// Define task's input and output, compile idl to schema and schema to java
+//
+task('buildAvroDto') {
+    group = "build"
+    inputs.files avdlFiles
+    outputs.dir generatedJavaDir
+    doLast {
+        avdlFiles.each { file ->
+            def schema = new Schema.Parser().parse(file as File)
+            def compiler = new SpecificCompiler(schema)
+            compiler.compileToDestination(file as File, new File(generatedJavaDir))
+        }
+    }
+}
+
+//
+// Publish source jar, including generated files
+//
+task('sourceJar', type: Jar, dependsOn: 'buildAvroDtos') {
+    from sourceSets.main.allSource
+    // Package schemas into source jar
+    into("schema") { from avdlFiles }
+}
+
+// Clean "generated" folder upon "clean" task
+clean.doFirst {
+    delete 'generated'
+}
